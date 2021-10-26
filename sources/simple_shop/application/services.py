@@ -3,6 +3,7 @@ from typing import Optional, List, Tuple
 from classic.components import component
 from classic.aspects import PointCut
 from classic.app import DTO, validate_with_dto
+from classic.messaging import Publisher, Message
 from pydantic import validate_arguments
 
 from .dataclasses import Customer, Product, Cart, Order, OrderLine
@@ -69,6 +70,7 @@ class Checkout:
     customers_repo: interfaces.CustomersRepo
     carts_repo: interfaces.CartsRepo
     orders_repo: interfaces.OrdersRepo
+    publisher: Publisher
 
     def _get_customer_and_cart(
         self, customer_id: Optional[int],
@@ -115,18 +117,22 @@ class Checkout:
 
         order = Order(customer)
 
-        for position in cart.positions:
-            order.lines.append(
-                OrderLine(
-                    position.product.sku,
-                    position.product.title,
-                    position.quantity,
-                    position.product.price,
-                )
+        order.lines = [
+            OrderLine(
+                position.product.sku,
+                position.product.title,
+                position.quantity,
+                position.product.price,
             )
+            for position in cart.positions
+        ]
 
         self.orders_repo.add(order)
         self.carts_repo.remove(cart)
+
+        self.publisher.plan(
+            Message('OrderPlaced', {'order_number': order.number})
+        )
 
         return order.number
 
@@ -134,17 +140,32 @@ class Checkout:
 @component
 class Orders:
     orders_repo: interfaces.OrdersRepo
+    mail_sender: interfaces.MailSender
 
     @join_point
     @validate_arguments
     def get_order(self, number: int,
                   customer_id: Optional[int] = None) -> Order:
 
-        product = self.orders_repo.get_by_number(number)
-        if product is None:
+        order = self.orders_repo.get_by_number(number)
+        if order is None:
             raise NoOrder(number=number)
 
-        if customer_id and product.customer.id != customer_id:
+        if customer_id and order.customer.id != customer_id:
             raise NoOrder(number=number)
 
-        return product
+        return order
+
+    @join_point
+    @validate_arguments
+    def send_message_to_manager(self, order_number: int):
+        order = self.orders_repo.get_by_number(order_number)
+        if order is None:
+            raise NoOrder(number=order_number)
+
+        self.mail_sender.send(
+            'admin@example.com',
+            'New order placed!',
+            f'Order with number {order.number} and cost {order.cost} '
+            f'have been created and waiting for approve.'
+        )

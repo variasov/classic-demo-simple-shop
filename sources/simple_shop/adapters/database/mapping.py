@@ -22,7 +22,7 @@ mapper.map_imperatively(
 
 mapper.map_imperatively(dataclasses.Cart, tables.carts, properties={
     'positions': relationship(
-        dataclasses.CartPosition, lazy='subquery'
+        dataclasses.CartPosition, lazy='subquery',
     )
 })
 

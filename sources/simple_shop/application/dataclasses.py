@@ -61,3 +61,7 @@ class Order:
     customer: Customer
     number: Optional[int] = None
     lines: List[OrderLine] = attr.ib(factory=list)
+
+    @property
+    def cost(self):
+        return sum((line.price for line in self.lines))

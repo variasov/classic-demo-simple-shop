@@ -66,3 +66,9 @@ class OrdersRepo(ABC):
 
     @abstractmethod
     def get_by_number(self, number: int) -> Optional[Order]: ...
+
+
+class MailSender(ABC):
+
+    @abstractmethod
+    def send(self, mail: str, title: str, text: str): ...
