@@ -8,7 +8,7 @@ metadata = MetaData()
 
 customers = Table(
     'customers', metadata,
-    Column('id', Integer, primary_key=True),
+    Column('number', Integer, primary_key=True),
     Column('email', String),
 )
 
@@ -23,7 +23,7 @@ products = Table(
 carts = Table(
     'carts', metadata,
     Column('id', Integer, primary_key=True),
-    Column('customer_id', ForeignKey('customers.id')),
+    Column('customer_number', ForeignKey('customers.number')),
 )
 
 cart_positions = Table(
@@ -37,7 +37,7 @@ cart_positions = Table(
 orders = Table(
     'orders', metadata,
     Column('number', Integer, primary_key=True),
-    Column('customer_id', ForeignKey('customers.id')),
+    Column('customer_number', ForeignKey('customers.number')),
 )
 
 order_lines = Table(

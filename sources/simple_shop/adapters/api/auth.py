@@ -1,3 +1,5 @@
+from classic.web import Request
+
 from functools import wraps
 
 
@@ -5,8 +7,9 @@ from functools import wraps
 def auth(function):
 
     @wraps(function)
-    def wrapper(controller, request, response, *args):
+    def wrapper(controller, request: Request, *args):
         request.context.client_id = 1
-        return function(controller, request, response, *args)
+
+        return function(controller, request, *args)
 
     return wrapper

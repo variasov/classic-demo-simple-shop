@@ -1,15 +1,16 @@
 from typing import Optional, List
 
-import attr
+from attr import dataclass, field
 
 
-@attr.dataclass
+@dataclass
 class Customer:
-    id: Optional[int] = None
+    id: int
     email: Optional[str] = None
+    number: Optional[int] = None
 
 
-@attr.dataclass
+@dataclass
 class Product:
     sku: str
     title: str
@@ -17,16 +18,16 @@ class Product:
     price: float
 
 
-@attr.dataclass
+@dataclass
 class CartPosition:
     product: Product
     quantity: int
 
 
-@attr.dataclass
+@dataclass
 class Cart:
-    customer_id: int
-    positions: List[CartPosition] = attr.ib(factory=list)
+    customer_number: int
+    positions: List[CartPosition] = field(factory=list)
 
     def find_position(self, product: Product):
         for position in self.positions:
@@ -36,7 +37,7 @@ class Cart:
     def add_product(self, product: Product, quantity: int):
         position = self.find_position(product)
         if position is None:
-            position = CartPosition(product, 0)
+            position = CartPosition(product=product, quantity=0)
 
         position.quantity += quantity
 
@@ -48,7 +49,7 @@ class Cart:
             self.positions.remove(position)
 
 
-@attr.dataclass
+@dataclass
 class OrderLine:
     product_sku: str
     product_title: str
@@ -56,11 +57,11 @@ class OrderLine:
     price: float
 
 
-@attr.dataclass
+@dataclass
 class Order:
     customer: Customer
     number: Optional[int] = None
-    lines: List[OrderLine] = attr.ib(factory=list)
+    lines: List[OrderLine] = field(factory=list)
 
     @property
     def cost(self):

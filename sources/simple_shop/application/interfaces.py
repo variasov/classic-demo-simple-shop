@@ -1,36 +1,39 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
-from .dataclasses import Product, Customer, Cart, Order
+from .entities import Product, Customer, Cart, Order
 
 
 class CustomersRepo(ABC):
 
     @abstractmethod
-    def get_by_id(self, id_: int) -> Optional[Customer]: ...
+    def get_by_number(self, number: int) -> Optional[Customer]: ...
 
     @abstractmethod
     def add(self, customer: Customer): ...
 
-    def get_or_create(self, id_: Optional[int]) -> Customer:
-        if id_ is None:
+    def get_or_create(self, number: Optional[int]) -> Tuple[Customer, bool]:
+        if number is None:
             customer = Customer()
             self.add(customer)
+            created = True
         else:
-            customer = self.get_by_id(id_)
+            customer = self.get_by_number(number)
             if customer is None:
                 customer = Customer()
                 self.add(customer)
+                created = True
+            else:
+                created = False
 
-        return customer
+        return customer, created
 
 
 class ProductsRepo(ABC):
 
     @abstractmethod
-    def find_by_keywords(self, search: str = None,
-                         limit: int = 10,
-                         offset: int = 0) -> List[Product]: ...
+    def find_by_keywords(self, search: Optional[str] = None,
+                         limit: int = 10, offset: int = 0) -> List[Product]: ...
 
     @abstractmethod
     def get_by_sku(self, sku: str) -> Optional[Product]: ...
@@ -42,7 +45,7 @@ class ProductsRepo(ABC):
 class CartsRepo(ABC):
 
     @abstractmethod
-    def get_for_customer(self, customer_id: int) -> Optional[Cart]: ...
+    def get_for_customer(self, customer_number: int) -> Optional[Cart]: ...
 
     @abstractmethod
     def add(self, cart: Cart): ...
@@ -50,13 +53,16 @@ class CartsRepo(ABC):
     @abstractmethod
     def remove(self, cart: Cart): ...
 
-    def get_or_create(self, customer_id: int) -> Cart:
-        cart = self.get_for_customer(customer_id)
+    def get_or_create(self, customer_number: int) -> Tuple[Cart, bool]:
+        cart = self.get_for_customer(customer_number)
         if cart is None:
-            cart = Cart(customer_id)
+            cart = Cart(customer_number)
             self.add(cart)
+            created = True
+        else:
+            created = False
 
-        return cart
+        return cart, created
 
 
 class OrdersRepo(ABC):

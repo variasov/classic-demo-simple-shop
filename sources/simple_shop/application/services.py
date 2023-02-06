@@ -1,137 +1,136 @@
 from typing import Optional, List, Tuple
 
 from classic.components import component
-from classic.aspects import PointCut
-from classic.app import DTO, validate_with_dto
-from classic.messaging import Publisher, Message
-from pydantic import validate_arguments
+from classic.validation import ValidationModel
+from classic.signals import Hub, reaction
+from classic.operations import operation
 
-from .dataclasses import Customer, Product, Cart, Order, OrderLine
-from .errors import NoProduct, NoOrder, EmptyCart
-from . import interfaces
+from .entities import Customer, Product, Cart, Order, OrderLine
 
-
-join_points = PointCut()
-join_point = join_points.join_point
+from . import interfaces, signals, errors
 
 
-class ProductInfo(DTO):
+class ProductInfo(ValidationModel):
     sku: str
     title: str
     description: str
     price: float
 
 
-class ProductInfoForChange(DTO):
+class ProductInfoForChange(ValidationModel):
     sku: str
-    title: str = None
-    description: str = None
-    price: float = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
 
 
 @component
 class Catalog:
-    products_repo: interfaces.ProductsRepo
+    products: interfaces.ProductsRepo
 
-    @join_point
-    @validate_arguments
+    @operation
     def search_products(self, search: str = None,
                         limit: int = 10, offset: int = 0) -> List[Product]:
-        return self.products_repo.find_by_keywords(search, limit, offset)
+        return list(self.products.find_by_keywords(search, limit, offset))
 
-    @join_point
-    @validate_arguments
+    @operation
     def get_product(self, sku: str) -> Product:
-        product = self.products_repo.get_by_sku(sku)
+        product = self.products.get_by_sku(sku)
         if product is None:
-            raise NoProduct(sku=sku)
+            raise errors.NoProduct(sku=sku)
 
         return product
 
-    @join_point
-    @validate_with_dto
+    @operation
     def add_product(self, product_info: ProductInfo):
         product = product_info.create_obj(Product)
-        self.products_repo.add(product)
+        self.products.add(product)
 
-    @join_point
-    @validate_with_dto
+    @operation
     def change_product(self, product_info: ProductInfoForChange):
-        product = self.products_repo.get_by_sku(product_info.sku)
+        product = self.products.get_by_sku(product_info.sku)
         if product is None:
-            raise NoProduct(SKU=product_info.sku)
+            raise errors.NoProduct(SKU=product_info.sku)
 
         product_info.populate_obj(product)
 
 
 @component
 class Checkout:
-    products_repo: interfaces.ProductsRepo
-    customers_repo: interfaces.CustomersRepo
-    carts_repo: interfaces.CartsRepo
-    orders_repo: interfaces.OrdersRepo
-    publisher: Publisher
+    products: interfaces.ProductsRepo
+    customers: interfaces.CustomersRepo
+    carts: interfaces.CartsRepo
+    orders: interfaces.OrdersRepo
+    signals: Hub
 
     def _get_customer_and_cart(
-        self, customer_id: Optional[int],
+        self, customer_number: Optional[int],
     ) -> Tuple[Customer, Cart]:
 
-        customer = self.customers_repo.get_or_create(customer_id)
-        cart = self.carts_repo.get_or_create(customer.id)
+        customer, created = self.customers.get_or_create(customer_number)
+        if created:
+            self.signals.defer(
+                signals.NewCustomer(customer_number)
+            )
+        cart, created = self.carts.get_or_create(customer.number)
+        if created:
+            self.signals.defer(
+                signals.NewCart(customer.number)
+            )
         return customer, cart
 
-    @join_point
-    @validate_arguments
-    def get_cart(self, customer_id: int = None) -> Cart:
-        __, cart = self._get_customer_and_cart(customer_id)
+    @operation
+    def get_cart(self, customer_number: int = None) -> Cart:
+        __, cart = self._get_customer_and_cart(customer_number)
         return cart
 
-    @join_point
-    @validate_arguments
+    @operation
     def add_product_to_cart(self, sku: str,
                             quantity: int = 1,
                             customer_id: int = None):
-        product = self.products_repo.get_by_sku(sku)
+        product = self.products.get_by_sku(sku)
         if product is None:
-            raise NoProduct(sku=sku)
+            raise errors.NoProduct(sku=sku)
 
         __, cart = self._get_customer_and_cart(customer_id)
         cart.add_product(product, quantity)
 
-    @join_point
-    @validate_arguments
+        self.signals.defer(
+            signals.CartChanged(cart.customer_number)
+        )
+
+    @operation
     def remove_product_from_cart(self, sku: str, customer_id: int = None):
-        product = self.products_repo.get_by_sku(sku)
+        product = self.products.get_by_sku(sku)
         if product is None:
-            raise NoProduct(sku=sku)
+            raise errors.NoProduct(sku=sku)
 
         __, cart = self._get_customer_and_cart(customer_id)
         cart.remove_product(product)
 
-    @join_point
-    @validate_arguments
+    @operation
     def create_order(self, customer_id: int = None) -> int:
         customer, cart = self._get_customer_and_cart(customer_id)
         if cart is None or not cart.positions:
-            raise EmptyCart()
+            raise errors.CartIsEmpty
 
-        order = Order(customer)
+        order = Order(
+            customer,
+            lines=[
+                OrderLine(
+                    position.product.sku,
+                    position.product.title,
+                    position.quantity,
+                    position.product.price
+                ) for position in cart.positions
+            ]
+        )
 
-        order.lines = [
-            OrderLine(
-                position.product.sku,
-                position.product.title,
-                position.quantity,
-                position.product.price,
-            )
-            for position in cart.positions
-        ]
+        self.orders.add(order)
+        self.carts.remove(cart)
 
-        self.orders_repo.add(order)
-        self.carts_repo.remove(cart)
-
-        self.publisher.plan(
-            Message('OrderPlaced', {'order_number': order.number})
+        self.signals.notify(
+            signals.OrderPlaced(order.number)
         )
 
         return order.number
@@ -139,29 +138,27 @@ class Checkout:
 
 @component
 class Orders:
-    orders_repo: interfaces.OrdersRepo
+    orders: interfaces.OrdersRepo
     mail_sender: interfaces.MailSender
 
-    @join_point
-    @validate_arguments
+    @operation
     def get_order(self, number: int,
                   customer_id: Optional[int] = None) -> Order:
 
-        order = self.orders_repo.get_by_number(number)
+        order = self.orders.get_by_number(number)
         if order is None:
-            raise NoOrder(number=number)
+            raise errors.NoOrder(number=number)
 
         if customer_id and order.customer.id != customer_id:
-            raise NoOrder(number=number)
+            raise errors.NoOrder(number=number)
 
         return order
 
-    @join_point
-    @validate_arguments
-    def send_message_to_manager(self, order_number: int):
-        order = self.orders_repo.get_by_number(order_number)
+    @reaction
+    def send_message_to_manager(self, signal: signals.OrderPlaced):
+        order = self.orders.get_by_number(signal.order_number)
         if order is None:
-            raise NoOrder(number=order_number)
+            raise errors.NoOrder(number=signal.order_number)
 
         self.mail_sender.send(
             'admin@example.com',

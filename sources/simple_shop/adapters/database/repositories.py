@@ -1,18 +1,18 @@
 from typing import Optional, List
 
 from classic.components import component
-from classic.sql_storage import BaseRepository
+from classic.persistence.sqlalchemy import BaseRepository
 from sqlalchemy import select
 
 from simple_shop.application import interfaces
-from simple_shop.application.dataclasses import Customer, Product, Order, Cart
+from simple_shop.application.entities import Customer, Product, Order, Cart
 
 
 @component
 class CustomersRepo(BaseRepository, interfaces.CustomersRepo):
 
-    def get_by_id(self, id_: int) -> Optional[Customer]:
-        query = select(Customer).where(Customer.id == id_)
+    def get_by_number(self, number: int) -> Optional[Customer]:
+        query = select(Customer).where(Customer.number == number)
         return self.session.execute(query).scalars().one_or_none()
 
     def add(self, customer: Customer):
@@ -51,8 +51,8 @@ class ProductsRepo(BaseRepository, interfaces.ProductsRepo):
 @component
 class CartsRepo(BaseRepository, interfaces.CartsRepo):
 
-    def get_for_customer(self, customer_id: int) -> Optional[Cart]:
-        query = select(Cart).where(Cart.customer_id == customer_id)
+    def get_for_customer(self, customer_number: int) -> Optional[Cart]:
+        query = select(Cart).where(Cart.customer_number == customer_number)
         return self.session.execute(query).scalars().one_or_none()
 
     def add(self, cart: Cart):

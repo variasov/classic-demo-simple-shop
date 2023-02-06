@@ -1,1 +1,1 @@
-from .sender import FileMailSender
+from .sender import LogMailSender

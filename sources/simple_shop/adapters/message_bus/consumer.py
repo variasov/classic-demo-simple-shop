@@ -1,19 +1,16 @@
-from classic.messaging_kombu import KombuConsumer
-from kombu import Connection
+from classic.messaging.kombu import KombuConsumer
+from classic.components import component
 
 from simple_shop.application import services
 
-from .scheme import broker_scheme
 
+@component
+class Worker(KombuConsumer):
+    orders: services.Orders
 
-def create_consumer(connection: Connection,
-                    orders: services.Orders) -> KombuConsumer:
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
 
-    consumer = KombuConsumer(connection=connection,
-                             scheme=broker_scheme)
-
-    consumer.register_function(
-        orders.send_message_to_manager, 'PrintOrderPlaced',
-    )
-
-    return consumer
+        self.register_function(
+            self.orders.send_message_to_manager, 'PrintOrderPlaced',
+        )

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class FileMailSender(interfaces.MailSender):
+class LogMailSender(interfaces.MailSender):
     """Simple sender for debugging"""
 
     level: int = logging.INFO
