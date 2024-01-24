@@ -3,7 +3,7 @@ from typing import Optional, List, Tuple
 from classic.components import component
 from classic.validation import ValidationModel
 from classic.signals import Hub, reaction
-from classic.operations import operation
+from classic.operations import operation, Operation
 
 from .entities import Customer, Product, Cart, Order, OrderLine
 
@@ -27,6 +27,7 @@ class ProductInfoForChange(ValidationModel):
 @component
 class Catalog:
     products: interfaces.ProductsRepo
+    operation_: Operation
 
     @operation
     def search_products(self, search: str = None,
@@ -61,7 +62,7 @@ class Checkout:
     customers: interfaces.CustomersRepo
     carts: interfaces.CartsRepo
     orders: interfaces.OrdersRepo
-    signals: Hub
+    hub: Hub
 
     def _get_customer_and_cart(
         self, customer_number: Optional[int],
@@ -69,12 +70,12 @@ class Checkout:
 
         customer, created = self.customers.get_or_create(customer_number)
         if created:
-            self.signals.notify(
+            self.hub.notify(
                 signals.NewCustomer(customer_number)
             )
         cart, created = self.carts.get_or_create(customer.number)
         if created:
-            self.signals.notify(
+            self.hub.notify(
                 signals.NewCart(customer.number)
             )
         return customer, cart
@@ -95,7 +96,7 @@ class Checkout:
         __, cart = self._get_customer_and_cart(customer_id)
         cart.add_product(product, quantity)
 
-        self.signals.notify(
+        self.hub.notify(
             signals.CartChanged(cart.customer_number)
         )
 
@@ -129,7 +130,7 @@ class Checkout:
         self.orders.add(order)
         self.carts.remove(cart)
 
-        self.signals.notify(
+        self.hub.notify(
             signals.OrderPlaced(order.number)
         )
 

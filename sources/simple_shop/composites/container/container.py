@@ -45,4 +45,7 @@ container.add_settings({
 
     # Application
     Operation: factory(new_operation),
+
+    # API
+    api.App: factory(api.App.create),
 })

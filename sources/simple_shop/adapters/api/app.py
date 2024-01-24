@@ -1,18 +1,22 @@
-from classic.components import component
-from classic.web import App
+from classic.http_api import App as BaseApp
 
 from . import controllers
 
 
-@component
-class ShopAPI(App):
-    catalog: controllers.Catalog
-    checkout: controllers.Checkout
-    orders: controllers.Orders
+class App(BaseApp):
 
-    def __attrs_post_init__(self):
-        super().__init__(prefix='/api')
+    @classmethod
+    def create(
+        cls,
+        catalog: controllers.Catalog,
+        checkout: controllers.Checkout,
+        orders: controllers.Orders,
+    ):
 
-        self.register_controller(self.catalog)
-        self.register_controller(self.checkout)
-        self.register_controller(self.orders)
+        app = cls(prefix='/api')
+
+        app.register(catalog)
+        app.register(checkout)
+        app.register(orders)
+
+        return app

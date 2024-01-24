@@ -3,7 +3,7 @@ from simple_shop.adapters import api
 from .container import container
 
 
-api = container.resolve(api.ShopAPI)
+api = container.resolve(api.App)
 
 
 if __name__ == '__main__':

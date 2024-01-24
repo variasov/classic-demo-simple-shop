@@ -1,3 +1,2 @@
-from .app import ShopAPI
-from .auth import auth
+from .app import App
 from . import controllers

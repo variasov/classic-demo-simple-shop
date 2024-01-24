@@ -63,7 +63,7 @@ class Application:
     )
 
 
-class ShopAPI:
+class API:
     catalog = api.controllers.Catalog(
         catalog=Application.catalog,
     )
@@ -73,14 +73,14 @@ class ShopAPI:
     orders = api.controllers.Orders(
         orders=Application.orders,
     )
-    app = api.ShopAPI(
+    app = api.App.create(
         catalog=catalog,
         checkout=checkout,
         orders=orders,
     )
 
 
-app = ShopAPI.app
+app = API.app
 
 
 if __name__ == '__main__':

@@ -1,52 +1,40 @@
 from classic.components import component
-from classic.web import Request, Response, get, post, cache_control
-from classic.operations import operation
 
 from simple_shop.application import services
-
-from .auth import auth
 
 
 @component
 class Catalog:
     catalog: services.Catalog
-    
-    @get
-    @cache_control
-    def show_product(self, request: Request) -> Response:
-        product = self.catalog.get_product(**request.args)
-        return Response({
+
+    def on_get_show_product(self, request, response):
+        product = self.catalog.get_product(**request.params)
+        response.media = {
             'sku': product.sku,
             'title': product.title,
             'description': product.description,
             'price': product.price,
-        })
-    
-    @get
-    @cache_control
-    @operation
-    def search_product(self, request: Request) -> Response:
-        products = self.catalog.search_products(**request.args)
-        return Response([
+        }
+
+    def on_get_search_product(self, request, response):
+        products = self.catalog.search_products(**request.params)
+        response.media = [
             {
                 'sku': product.sku,
                 'title': product.title,
                 'description': product.description,
                 'price': product.price,
             } for product in products
-        ])
+        ]
 
 
 @component
 class Checkout:
     checkout: services.Checkout
 
-    @auth
-    @get
-    @operation
-    def show_cart(self, request: Request) -> Response:
-        cart = self.checkout.get_cart(customer_number=request.context.client_id)
-        return Response({
+    def on_get_show_cart(self, request, response):
+        cart = self.checkout.get_cart(request.context.client_id)
+        response.media = {
             'positions': [
                 {
                     'product_sku': position.product.sku,
@@ -55,48 +43,37 @@ class Checkout:
                 }
                 for position in cart.positions
             ]
-        })
+        }
 
-    @auth
-    @post
-    def add_product_to_cart(self, request: Request) -> Response:
+    def on_post_add_product_to_cart(self, request, response):
         self.checkout.add_product_to_cart(
             customer_id=request.context.client_id,
-            **(request.json or {}),
+            **request.media,
         )
-        return Response()
 
-    @auth
-    @post
-    def remove_product_from_cart(self, request: Request) -> Response:
+    def on_post_remove_product_from_cart(self, request, response):
         self.checkout.remove_product_from_cart(
             customer_id=request.context.client_id,
-            **request.json,
+            **request.media,
         )
-        return Response()
 
-    @auth
-    @post
-    def register_order(self, request: Request) -> Response:
+    def on_post_register_order(self, request, response):
         order_number = self.checkout.create_order(
             customer_id=request.context.client_id,
         )
-        return Response({'order_number': order_number})
+        response.media = {'order_number': order_number}
 
 
 @component
 class Orders:
     orders: services.Orders
 
-    @auth
-    @get
-    @cache_control
-    def show_order(self, request: Request) -> Response:
+    def on_get_show_order(self, request, response):
         order = self.orders.get_order(
             customer_id=request.context.client_id,
-            **request.json,
+            **request.params,
         )
-        return Response({
+        response.media = {
             'number': order.number,
             'positions': [
                 {
@@ -107,4 +84,4 @@ class Orders:
                 }
                 for line in order.lines
             ]
-        })
+        }
