@@ -1,35 +1,24 @@
 from sqlalchemy import create_engine
 
-from classic.persistence.sqlalchemy import TransactionsController
+from classic.operations import Operation
 from classic.messaging.kombu import KombuPublisher
 from kombu import Connection
 
 from simple_shop.application import services
-from simple_shop.adapters import database, message_bus, shop_api, mail_sending
+from simple_shop.adapters import database, message_bus, api, mail_sending
 
 
 class DB:
     db = database
 
     settings = db.Settings()
-
     engine = create_engine(settings.DB_URL)
-    db.metadata.create_all(engine)
+    session = db.new_session(engine)
 
-    controller = TransactionsController(bind=engine, expire_on_commit=False)
-
-    customers_repo = db.repositories.CustomersRepo(
-        transactions_controller=controller,
-    )
-    products_repo = db.repositories.ProductsRepo(
-        transactions_controller=controller,
-    )
-    carts_repo = db.repositories.CartsRepo(
-        transactions_controller=controller,
-    )
-    orders_repo = db.repositories.OrdersRepo(
-        transactions_controller=controller,
-    )
+    customers_repo = db.repositories.CustomersRepo(session=session)
+    products_repo = db.repositories.ProductsRepo(session=session)
+    carts_repo = db.repositories.CartsRepo(session=session)
+    orders_repo = db.repositories.OrdersRepo(session=session)
 
 
 class MessageBus:
@@ -48,13 +37,18 @@ class MailSending:
 
 
 class Application:
+    operation = Operation(
+        context_managers=DB.session,
+        after_complete=MessageBus.publisher.flush,
+        on_cancel=MessageBus.publisher.reset,
+    )
     catalog = services.Catalog(
-        transactions_controller=DB.controller,
+        operaion_=operation,
         products_repo=DB.products_repo,
         publisher=MessageBus.publisher,
     )
     checkout = services.Checkout(
-        transactions_controller=DB.controller,
+        operaion_=operation,
         customers_repo=DB.customers_repo,
         products_repo=DB.products_repo,
         carts_repo=DB.carts_repo,
@@ -62,7 +56,7 @@ class Application:
         publisher=MessageBus.publisher,
     )
     orders = services.Orders(
-        transactions_controller=DB.controller,
+        operaion_=operation,
         orders_repo=DB.orders_repo,
         mail_sender=MailSending.sender,
         publisher=MessageBus.publisher,
@@ -70,19 +64,16 @@ class Application:
 
 
 class ShopAPI:
-    catalog = shop_api.controllers.Catalog(
+    catalog = api.controllers.Catalog(
         catalog=Application.catalog,
-        # transactions_controller=DB.controller,
     )
-    checkout = shop_api.controllers.Checkout(
+    checkout = api.controllers.Checkout(
         checkout=Application.checkout,
-        # transactions_controller=DB.controller,
     )
-    orders = shop_api.controllers.Orders(
+    orders = api.controllers.Orders(
         orders=Application.orders,
-        # transactions_controller=DB.controller,
     )
-    app = shop_api.ShopAPI(
+    app = api.ShopAPI(
         catalog=catalog,
         checkout=checkout,
         orders=orders,

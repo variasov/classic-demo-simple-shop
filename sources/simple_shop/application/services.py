@@ -69,12 +69,12 @@ class Checkout:
 
         customer, created = self.customers.get_or_create(customer_number)
         if created:
-            self.signals.defer(
+            self.signals.notify(
                 signals.NewCustomer(customer_number)
             )
         cart, created = self.carts.get_or_create(customer.number)
         if created:
-            self.signals.defer(
+            self.signals.notify(
                 signals.NewCart(customer.number)
             )
         return customer, cart
@@ -95,7 +95,7 @@ class Checkout:
         __, cart = self._get_customer_and_cart(customer_id)
         cart.add_product(product, quantity)
 
-        self.signals.defer(
+        self.signals.notify(
             signals.CartChanged(cart.customer_number)
         )
 

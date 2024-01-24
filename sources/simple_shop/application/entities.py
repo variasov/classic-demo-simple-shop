@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from attr import dataclass, field
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -27,7 +27,7 @@ class CartPosition:
 @dataclass
 class Cart:
     customer_number: int
-    positions: List[CartPosition] = field(factory=list)
+    positions: List[CartPosition] = field(default_factory=list)
 
     def find_position(self, product: Product):
         for position in self.positions:
@@ -61,7 +61,7 @@ class OrderLine:
 class Order:
     customer: Customer
     number: Optional[int] = None
-    lines: List[OrderLine] = field(factory=list)
+    lines: List[OrderLine] = field(default_factory=list)
 
     @property
     def cost(self):

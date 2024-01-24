@@ -1,6 +1,6 @@
 import logging
 
-from classic.persistence.sqlalchemy import TransactionsController
+from classic.operations import Operation
 from classic.messaging.kombu import KombuPublisher
 
 from sqlalchemy import create_engine
@@ -17,13 +17,10 @@ class DB:
     db = database
 
     settings = db.Settings()
-
     engine = create_engine(settings.DB_URL)
-    db.metadata.create_all(engine)
+    session = db.new_session(engine)
 
-    controller = TransactionsController(bind=engine, expire_on_commit=False)
-
-    orders_repo = db.repositories.OrdersRepo(transactions_controller=controller)
+    orders_repo = db.repositories.OrdersRepo(session=session)
 
 
 class MailSending:
@@ -42,10 +39,15 @@ class MessageBus:
 
 
 class Application:
+    operation = Operation(
+        context_managers=DB.session,
+        after_complete=MessageBus.publisher.flush,
+        on_cancel=MessageBus.publisher.reset,
+    )
     orders = services.Orders(
         orders_repo=DB.orders_repo,
         mail_sender=MailSending.sender,
-        transactions_controller=DB.controller,
+        operation_=operation,
         publisher=MessageBus.publisher,
     )
 
